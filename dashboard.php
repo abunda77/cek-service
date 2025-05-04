@@ -67,6 +67,28 @@ try {
     $username = $_SESSION['username'] ?? 'Pengguna';
     $logger->info('Dashboard diakses oleh pengguna', ['username' => $username]);
 
+    // Fungsi untuk mendapatkan semua port yang terbuka
+    function getOpenPorts()
+    {
+        try {
+            // Menggunakan netstat untuk mendapatkan daftar port yang terbuka
+            // -t: tcp, -u: udp, -l: listening, -n: numeric, -p: program/PID
+            $command = "netstat -tuln | grep LISTEN | awk '{print \$4}' | awk -F: '{print \$NF}' | sort -n";
+            $output = shell_exec($command);
+
+            if ($output) {
+                // Parse output untuk mendapatkan daftar port
+                $ports = array_filter(explode("\n", $output), 'strlen');
+                return array_unique($ports); // Hapus duplikat
+            }
+
+            return [];
+        } catch (Exception $e) {
+            // Jika terjadi error, kembalikan array kosong
+            return [];
+        }
+    }
+
     // Fungsi untuk memeriksa status port
     function checkPort($port)
     {
@@ -76,6 +98,34 @@ try {
             return true;
         }
         return false;
+    }
+
+    // Fungsi untuk mendapatkan proses yang menggunakan port tertentu
+    function getProcessByPort($port)
+    {
+        try {
+            $command = "lsof -i :$port -n -P | grep LISTEN";
+            $output = shell_exec($command);
+
+            if ($output) {
+                // Parse output untuk mendapatkan nama proses
+                $lines = explode("\n", trim($output));
+                if (!empty($lines)) {
+                    // Format output: COMMAND  PID USER  ... 
+                    $parts = preg_split('/\s+/', $lines[0]);
+                    if (count($parts) >= 2) {
+                        return [
+                            'name' => $parts[0],
+                            'pid' => $parts[1]
+                        ];
+                    }
+                }
+            }
+
+            return ['name' => 'Unknown', 'pid' => 'N/A'];
+        } catch (Exception $e) {
+            return ['name' => 'Error', 'pid' => 'N/A'];
+        }
     }
 
     // Fungsi untuk mendapatkan status systemctl
@@ -159,6 +209,15 @@ try {
     // Cek status layanan Laravel FrankenPHP
     $stagingStatus = getSystemctlStatus('laravel-frankenphp-staging');
     $productionStatus = getSystemctlStatus('laravel-frankenphp-production');
+
+    // Dapatkan semua port yang terbuka
+    $openPorts = getOpenPorts();
+    // Informasi proses untuk port spesifik
+    $port8111Process = $port8111Status ? getProcessByPort(8111) : null;
+    $port8112Process = $port8112Status ? getProcessByPort(8112) : null;
+
+    // Ambil jumlah port yang terbuka
+    $openPortCount = count($openPorts);
 
     // Ambil data layanan dummy
     $services = getServiceStatus($logger);
@@ -265,6 +324,35 @@ try {
             border-radius: 4px;
             margin-bottom: 20px;
         }
+
+        .ports-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+            grid-gap: 10px;
+            margin-top: 15px;
+        }
+
+        .port-tile {
+            background-color: rgba(79, 70, 229, 0.1);
+            border: 1px solid rgba(79, 70, 229, 0.3);
+            border-radius: 4px;
+            padding: 8px;
+            text-align: center;
+        }
+
+        .small-text {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .expander {
+            background: none;
+            border: none;
+            color: #4f46e5;
+            cursor: pointer;
+            padding: 5px;
+            text-decoration: underline;
+        }
     </style>
 </head>
 
@@ -313,13 +401,13 @@ try {
             <!-- Card 1 -->
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title">Port Aktif</h3>
+                    <h3 class="card-title">Port Terbuka</h3>
                     <div class="card-icon icon-green">
                         <i class="fas fa-plug"></i>
                     </div>
                 </div>
-                <p class="card-value"><?php echo ($port8111Status ? '1' : '0') + ($port8112Status ? '1' : '0'); ?>/2</p>
-                <p class="card-subtitle">Port yang terhubung</p>
+                <p class="card-value"><?php echo $openPortCount; ?></p>
+                <p class="card-subtitle">Total port aktif</p>
             </div>
 
             <!-- Card 2 -->
@@ -347,15 +435,47 @@ try {
             </div>
         </div>
 
+        <!-- All Open Ports Section -->
+        <div class="status-section">
+            <h3><i class="fas fa-network-wired mr-2"></i> Semua Port Terbuka</h3>
+
+            <div class="ports-grid" id="ports-grid">
+                <?php if (!empty($openPorts)): ?>
+                    <?php foreach (array_slice($openPorts, 0, 20) as $port): ?>
+                        <div class="port-tile">
+                            <div><strong><?php echo htmlspecialchars($port); ?></strong></div>
+                            <?php
+                            if ($port == 8111 || $port == 8112) {
+                                $processInfo = $port == 8111 ? $port8111Process : $port8112Process;
+                                if ($processInfo) {
+                                    echo '<div class="small-text">' . htmlspecialchars($processInfo['name']) . '</div>';
+                                }
+                            }
+                            ?>
+                        </div>
+                    <?php endforeach; ?>
+
+                    <?php if (count($openPorts) > 20): ?>
+                        <button class="expander" id="show-more-ports">
+                            Tampilkan <?php echo count($openPorts) - 20; ?> port lainnya...
+                        </button>
+                    <?php endif; ?>
+                <?php else: ?>
+                    <p>Tidak ada port yang terbuka atau tidak dapat membaca informasi port.</p>
+                <?php endif; ?>
+            </div>
+        </div>
+
         <!-- Port Status Section -->
         <div class="status-section">
-            <h3><i class="fas fa-network-wired mr-2"></i> Status Port</h3>
+            <h3><i class="fas fa-network-wired mr-2"></i> Status Port Monitoring</h3>
             <table class="status-table">
                 <thead>
                     <tr>
                         <th>Port</th>
                         <th>Status</th>
-                        <th>Informasi</th>
+                        <th>Proses</th>
+                        <th>PID</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -365,7 +485,8 @@ try {
                             <span class="status-indicator <?php echo $port8111Status ? 'status-active' : 'status-inactive'; ?>"></span>
                             <?php echo $port8111Status ? 'Terhubung' : 'Tidak Terhubung'; ?>
                         </td>
-                        <td>FrankenPHP Staging</td>
+                        <td><?php echo $port8111Status && $port8111Process ? htmlspecialchars($port8111Process['name']) : '-'; ?></td>
+                        <td><?php echo $port8111Status && $port8111Process ? htmlspecialchars($port8111Process['pid']) : '-'; ?></td>
                     </tr>
                     <tr>
                         <td>8112</td>
@@ -373,7 +494,8 @@ try {
                             <span class="status-indicator <?php echo $port8112Status ? 'status-active' : 'status-inactive'; ?>"></span>
                             <?php echo $port8112Status ? 'Terhubung' : 'Tidak Terhubung'; ?>
                         </td>
-                        <td>FrankenPHP Production</td>
+                        <td><?php echo $port8112Status && $port8112Process ? htmlspecialchars($port8112Process['name']) : '-'; ?></td>
+                        <td><?php echo $port8112Status && $port8112Process ? htmlspecialchars($port8112Process['pid']) : '-'; ?></td>
                     </tr>
                 </tbody>
             </table>
@@ -498,6 +620,60 @@ try {
 
     <!-- Custom JavaScript -->
     <script src="assets/js/dashboard.js"></script>
+    <script>
+        // JavaScript untuk menampilkan lebih banyak port
+        document.addEventListener('DOMContentLoaded', function() {
+            const showMoreButton = document.getElementById('show-more-ports');
+            if (showMoreButton) {
+                showMoreButton.addEventListener('click', function() {
+                    // Mengubah teks tombol menjadi loading
+                    showMoreButton.textContent = 'Memuat...';
+                    showMoreButton.disabled = true;
+
+                    // Memuat semua port dengan AJAX
+                    fetch('get_all_ports.php')
+                        .then(response => response.json())
+                        .then(data => {
+                            const portsGrid = document.getElementById('ports-grid');
+
+                            // Hapus semua konten kecuali tombol show-more
+                            while (portsGrid.firstChild) {
+                                portsGrid.removeChild(portsGrid.firstChild);
+                            }
+
+                            // Tampilkan semua port
+                            if (data.length > 0) {
+                                data.forEach(portInfo => {
+                                    const portTile = document.createElement('div');
+                                    portTile.className = 'port-tile';
+
+                                    let portContent = `<div><strong>${portInfo.port}</strong></div>`;
+
+                                    // Tambahkan info proses jika tersedia
+                                    if (portInfo.process) {
+                                        portContent += `<div class="small-text">${portInfo.process}</div>`;
+                                        if (portInfo.pid) {
+                                            portContent += `<div class="small-text">PID: ${portInfo.pid}</div>`;
+                                        }
+                                    }
+
+                                    portTile.innerHTML = portContent;
+                                    portsGrid.appendChild(portTile);
+                                });
+                            } else {
+                                const noPortsMsg = document.createElement('p');
+                                noPortsMsg.textContent = 'Tidak ada port yang terbuka atau tidak dapat membaca informasi port.';
+                                portsGrid.appendChild(noPortsMsg);
+                            }
+                        })
+                        .catch(error => {
+                            console.error('Error:', error);
+                            showMoreButton.textContent = 'Gagal memuat data';
+                        });
+                });
+            }
+        });
+    </script>
 </body>
 
 </html>
