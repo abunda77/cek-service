@@ -1,30 +1,85 @@
 <?php
+// Muat error handler terlebih dahulu
+require_once 'includes/error_handler.php';
+
+// Mulai session
 session_start();
 
-// Memuat library phpdotenv
-require_once 'vendor/autoload.php';
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
-$dotenv->load();
+// Logger untuk halaman dashboard
+$logger = new Logger();
+$logger->info('Akses halaman dashboard');
 
-// Cek apakah user sudah login
-if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
-    header('Location: index.php');
-    exit;
+try {
+    // Memuat library phpdotenv
+    require_once 'vendor/autoload.php';
+
+    // Coba muat file .env
+    try {
+        $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+        $dotenv->load();
+        $logger->debug('File .env berhasil dimuat');
+    } catch (Exception $e) {
+        $logger->error('Gagal memuat file .env: ' . $e->getMessage());
+        throw new Exception('Konfigurasi aplikasi tidak ditemukan.');
+    }
+
+    // Cek apakah user sudah login
+    if (!isset($_SESSION['loggedin']) || $_SESSION['loggedin'] !== true) {
+        $logger->warning('Akses tidak sah ke dashboard', ['ip' => $_SERVER['REMOTE_ADDR']]);
+        header('Location: index.php');
+        exit;
+    }
+
+    // Proses logout
+    if (isset($_GET['logout'])) {
+        $logger->info('Pengguna logout', ['username' => $_SESSION['username'] ?? 'unknown']);
+        // Hapus semua data session
+        session_unset();
+        session_destroy();
+
+        // Redirect ke halaman login
+        header('Location: index.php');
+        exit;
+    }
+
+    // Username dari session
+    $username = $_SESSION['username'] ?? 'Pengguna';
+    $logger->info('Dashboard diakses oleh pengguna', ['username' => $username]);
+
+    // Disini bisa ditambahkan pemanggilan fungsi yang mengambil data aktual
+    // dari sistem operasi Linux untuk monitoring port dan service
+
+    // Fungsi untuk mendapatkan status layanan (dummy function)
+    function getServiceStatus($logger)
+    {
+        // Ini adalah contoh data statis, dalam implementasi sebenarnya
+        // fungsi ini akan memanggil perintah sistem seperti 'systemctl'
+        try {
+            // Contoh untuk implementasi sebenarnya:
+            // $output = shell_exec('systemctl status nginx 2>&1');
+            // return parseServiceOutput($output);
+
+            return [
+                ['name' => 'API Gateway', 'status' => 'online', 'uptime' => '99.9%', 'requests' => '245'],
+                ['name' => 'Authentication Service', 'status' => 'online', 'uptime' => '99.8%', 'requests' => '187'],
+                ['name' => 'Payment Gateway', 'status' => 'online', 'uptime' => '99.7%', 'requests' => '156'],
+                ['name' => 'Database Cluster', 'status' => 'online', 'uptime' => '99.9%', 'requests' => '320'],
+                ['name' => 'File Storage', 'status' => 'maintenance', 'uptime' => '97.2%', 'requests' => '68']
+            ];
+        } catch (Exception $e) {
+            $logger->error('Gagal mendapatkan status layanan: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    // Ambil data layanan
+    $services = getServiceStatus($logger);
+} catch (Exception $e) {
+    $logger->critical('Error pada halaman dashboard: ' . $e->getMessage(), [
+        'trace' => $e->getTraceAsString()
+    ]);
+    $errorMessage = 'Terjadi kesalahan sistem. Silakan coba lagi nanti atau hubungi administrator.';
 }
-
-// Proses logout
-if (isset($_GET['logout'])) {
-    // Hapus semua data session
-    session_unset();
-    session_destroy();
-
-    // Redirect ke halaman login
-    header('Location: index.php');
-    exit;
-}
-
-// Username dari session
-$username = $_SESSION['username'] ?? 'Pengguna';
 ?>
 
 <!DOCTYPE html>
@@ -61,6 +116,15 @@ $username = $_SESSION['username'] ?? 'Pengguna';
             </div>
         </div>
     </nav>
+
+    <?php if (isset($errorMessage)): ?>
+        <!-- Error Message -->
+        <div class="container" style="padding-top: 2rem;">
+            <div class="login-error">
+                <p><i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($errorMessage); ?></p>
+            </div>
+        </div>
+    <?php endif; ?>
 
     <!-- Main Content -->
     <div class="container" style="padding-top: 2rem;">
@@ -116,36 +180,28 @@ $username = $_SESSION['username'] ?? 'Pengguna';
                         </tr>
                     </thead>
                     <tbody>
-                        <tr>
-                            <td>API Gateway</td>
-                            <td><span class="badge badge-success">Online</span></td>
-                            <td>99.9%</td>
-                            <td>245</td>
-                        </tr>
-                        <tr>
-                            <td>Authentication Service</td>
-                            <td><span class="badge badge-success">Online</span></td>
-                            <td>99.8%</td>
-                            <td>187</td>
-                        </tr>
-                        <tr>
-                            <td>Payment Gateway</td>
-                            <td><span class="badge badge-success">Online</span></td>
-                            <td>99.7%</td>
-                            <td>156</td>
-                        </tr>
-                        <tr>
-                            <td>Database Cluster</td>
-                            <td><span class="badge badge-success">Online</span></td>
-                            <td>99.9%</td>
-                            <td>320</td>
-                        </tr>
-                        <tr>
-                            <td>File Storage</td>
-                            <td><span class="badge badge-warning">Maintenance</span></td>
-                            <td>97.2%</td>
-                            <td>68</td>
-                        </tr>
+                        <?php if (isset($services) && !empty($services)): ?>
+                            <?php foreach ($services as $service): ?>
+                                <tr>
+                                    <td><?php echo htmlspecialchars($service['name']); ?></td>
+                                    <td>
+                                        <?php if ($service['status'] === 'online'): ?>
+                                            <span class="badge badge-success">Online</span>
+                                        <?php elseif ($service['status'] === 'maintenance'): ?>
+                                            <span class="badge badge-warning">Maintenance</span>
+                                        <?php else: ?>
+                                            <span class="badge badge-danger">Offline</span>
+                                        <?php endif; ?>
+                                    </td>
+                                    <td><?php echo htmlspecialchars($service['uptime']); ?></td>
+                                    <td><?php echo htmlspecialchars($service['requests']); ?></td>
+                                </tr>
+                            <?php endforeach; ?>
+                        <?php else: ?>
+                            <tr>
+                                <td colspan="4" class="text-center">Data layanan tidak tersedia</td>
+                            </tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
             </div>

@@ -1,41 +1,74 @@
 <?php
+// Muat error handler terlebih dahulu
+require_once 'includes/error_handler.php';
+
+// Mulai session
 session_start();
 
-// Memuat library phpdotenv untuk membaca file .env
-require_once 'vendor/autoload.php';
-$dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
-$dotenv->load();
+// Logger untuk halaman login
+$logger = new Logger();
+$logger->info('Akses halaman login');
 
-// Cek apakah user sudah login
-if (isset($_SESSION['loggedin']) && $_SESSION['loggedin'] === true) {
-    header('Location: dashboard.php');
-    exit;
-}
+try {
+    // Memuat library phpdotenv untuk membaca file .env
+    require_once 'vendor/autoload.php';
 
-// Proses login
-$errors = [];
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $username = trim($_POST['username'] ?? '');
-    $password = trim($_POST['password'] ?? '');
+    // Coba muat file .env
+    try {
+        $dotenv = Dotenv\Dotenv::createImmutable(__DIR__);
+        $dotenv->load();
+        $logger->debug('File .env berhasil dimuat');
+    } catch (Exception $e) {
+        $logger->error('Gagal memuat file .env: ' . $e->getMessage());
+        throw new Exception('Konfigurasi aplikasi tidak ditemukan.');
+    }
 
-    // Validasi input
-    if (empty($username) || empty($password)) {
-        $errors[] = 'Username dan password harus diisi.';
-    } else {
-        // Ambil kredensial dari .env
-        $env_username = $_ENV['APP_USERNAME'] ?? '';
-        $env_password = $_ENV['APP_PASSWORD'] ?? '';
+    // Cek apakah user sudah login
+    if (isset($_SESSION['loggedin']) && $_SESSION['loggedin'] === true) {
+        $logger->info('Pengguna sudah login, mengalihkan ke dashboard', ['username' => $_SESSION['username'] ?? 'unknown']);
+        header('Location: dashboard.php');
+        exit;
+    }
 
-        // Verifikasi kredensial
-        if ($username === $env_username && $password === $env_password) {
-            $_SESSION['loggedin'] = true;
-            $_SESSION['username'] = $username;
-            header('Location: dashboard.php');
-            exit;
+    // Proses login
+    $errors = [];
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        $username = trim($_POST['username'] ?? '');
+        $password = trim($_POST['password'] ?? '');
+        $logger->info('Percobaan login', ['username' => $username, 'ip' => $_SERVER['REMOTE_ADDR']]);
+
+        // Validasi input
+        if (empty($username) || empty($password)) {
+            $errors[] = 'Username dan password harus diisi.';
+            $logger->warning('Login gagal: input kosong', ['username' => $username]);
         } else {
-            $errors[] = 'Username atau password salah.';
+            // Ambil kredensial dari .env
+            $env_username = $_ENV['APP_USERNAME'] ?? '';
+            $env_password = $_ENV['APP_PASSWORD'] ?? '';
+
+            if (empty($env_username) || empty($env_password)) {
+                $logger->error('Kredensial tidak ditemukan di file .env');
+                $errors[] = 'Konfigurasi aplikasi tidak lengkap. Hubungi administrator.';
+            } else {
+                // Verifikasi kredensial
+                if ($username === $env_username && $password === $env_password) {
+                    $_SESSION['loggedin'] = true;
+                    $_SESSION['username'] = $username;
+                    $logger->info('Login berhasil', ['username' => $username]);
+                    header('Location: dashboard.php');
+                    exit;
+                } else {
+                    $errors[] = 'Username atau password salah.';
+                    $logger->warning('Login gagal: kredensial tidak valid', ['username' => $username]);
+                }
+            }
         }
     }
+} catch (Exception $e) {
+    $logger->critical('Error pada halaman login: ' . $e->getMessage(), [
+        'trace' => $e->getTraceAsString()
+    ]);
+    $errors[] = 'Terjadi kesalahan: ' . $e->getMessage();
 }
 ?>
 
