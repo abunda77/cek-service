@@ -30,6 +30,27 @@ try {
         exit;
     }
 
+    // Proses restart service jika diminta
+    if (isset($_POST['restart_service']) && !empty($_POST['service_name'])) {
+        $service_name = $_POST['service_name'];
+        $allowed_services = ['laravel-frankenphp-staging', 'laravel-frankenphp-production'];
+
+        if (in_array($service_name, $allowed_services)) {
+            try {
+                $command = "systemctl restart " . escapeshellarg($service_name) . " 2>&1";
+                $output = shell_exec($command);
+                $logger->info('Service di-restart', ['service' => $service_name, 'output' => $output]);
+                $success_message = "Service $service_name berhasil di-restart.";
+            } catch (Exception $e) {
+                $logger->error('Gagal me-restart service', ['service' => $service_name, 'error' => $e->getMessage()]);
+                $error_message = "Gagal me-restart service $service_name: " . $e->getMessage();
+            }
+        } else {
+            $logger->warning('Percobaan restart service tidak diizinkan', ['service' => $service_name]);
+            $error_message = "Service tidak diizinkan untuk di-restart.";
+        }
+    }
+
     // Proses logout
     if (isset($_GET['logout'])) {
         $logger->info('Pengguna logout', ['username' => $_SESSION['username'] ?? 'unknown']);
@@ -46,8 +67,67 @@ try {
     $username = $_SESSION['username'] ?? 'Pengguna';
     $logger->info('Dashboard diakses oleh pengguna', ['username' => $username]);
 
-    // Disini bisa ditambahkan pemanggilan fungsi yang mengambil data aktual
-    // dari sistem operasi Linux untuk monitoring port dan service
+    // Fungsi untuk memeriksa status port
+    function checkPort($port)
+    {
+        $connection = @fsockopen('127.0.0.1', $port, $errno, $errstr, 2);
+        if (is_resource($connection)) {
+            fclose($connection);
+            return true;
+        }
+        return false;
+    }
+
+    // Fungsi untuk mendapatkan status systemctl
+    function getSystemctlStatus($service)
+    {
+        try {
+            $command = "systemctl status " . escapeshellarg($service) . " 2>&1";
+            $output = shell_exec($command);
+
+            // Parse output untuk mendapatkan status
+            $active = false;
+            $status = "unknown";
+            $description = "";
+
+            if (strpos($output, 'Active: active (running)') !== false) {
+                $active = true;
+                $status = "active";
+            } elseif (strpos($output, 'Active: inactive') !== false) {
+                $status = "inactive";
+            } elseif (strpos($output, 'Active: failed') !== false) {
+                $status = "failed";
+            }
+
+            // Ekstrak informasi tambahan
+            preg_match('/Description: (.+)$/m', $output, $descMatches);
+            if (isset($descMatches[1])) {
+                $description = trim($descMatches[1]);
+            }
+
+            // Ekstrak waktu uptime
+            $uptime = "";
+            if (preg_match('/Active: active \(running\) since (.+);/U', $output, $uptimeMatches)) {
+                $uptime = trim($uptimeMatches[1]);
+            }
+
+            return [
+                'active' => $active,
+                'status' => $status,
+                'description' => $description,
+                'uptime' => $uptime,
+                'raw_output' => $output
+            ];
+        } catch (Exception $e) {
+            return [
+                'active' => false,
+                'status' => 'error',
+                'description' => $e->getMessage(),
+                'uptime' => '',
+                'raw_output' => ''
+            ];
+        }
+    }
 
     // Fungsi untuk mendapatkan status layanan (dummy function)
     function getServiceStatus($logger)
@@ -72,7 +152,15 @@ try {
         }
     }
 
-    // Ambil data layanan
+    // Cek status port
+    $port8111Status = checkPort(8111);
+    $port8112Status = checkPort(8112);
+
+    // Cek status layanan Laravel FrankenPHP
+    $stagingStatus = getSystemctlStatus('laravel-frankenphp-staging');
+    $productionStatus = getSystemctlStatus('laravel-frankenphp-production');
+
+    // Ambil data layanan dummy
     $services = getServiceStatus($logger);
 } catch (Exception $e) {
     $logger->critical('Error pada halaman dashboard: ' . $e->getMessage(), [
@@ -97,6 +185,87 @@ try {
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link rel="stylesheet" href="assets/css/dashboard.css">
+    <style>
+        /* Style tambahan untuk bagian monitoring port dan service */
+        .status-indicator {
+            display: inline-block;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            margin-right: 6px;
+        }
+
+        .status-active {
+            background-color: #10b981;
+        }
+
+        .status-inactive {
+            background-color: #dc2626;
+        }
+
+        .status-table {
+            width: 100%;
+            margin-bottom: 1.5rem;
+        }
+
+        .status-table th {
+            text-align: left;
+            padding: 10px;
+            background-color: rgba(255, 255, 255, 0.1);
+        }
+
+        .status-table td {
+            padding: 12px 10px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+
+        .restart-form {
+            display: inline;
+        }
+
+        .restart-btn {
+            background-color: #f59e0b;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+        }
+
+        .restart-btn:hover {
+            background-color: #d97706;
+        }
+
+        .status-section {
+            background-color: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            padding: 20px;
+            margin-bottom: 30px;
+        }
+
+        .status-section h3 {
+            margin-top: 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+            padding-bottom: 10px;
+        }
+
+        .message-success {
+            background-color: rgba(16, 185, 129, 0.2);
+            color: #ecfdf5;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+
+        .message-error {
+            background-color: rgba(220, 38, 38, 0.2);
+            color: #fef2f2;
+            padding: 10px 15px;
+            border-radius: 4px;
+            margin-bottom: 20px;
+        }
+    </style>
 </head>
 
 <body>
@@ -128,29 +297,41 @@ try {
 
     <!-- Main Content -->
     <div class="container" style="padding-top: 2rem;">
+        <?php if (isset($success_message)): ?>
+            <div class="message-success">
+                <i class="fas fa-check-circle"></i> <?php echo htmlspecialchars($success_message); ?>
+            </div>
+        <?php endif; ?>
+
+        <?php if (isset($error_message)): ?>
+            <div class="message-error">
+                <i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($error_message); ?>
+            </div>
+        <?php endif; ?>
+
         <div class="card-grid">
             <!-- Card 1 -->
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title">Layanan Aktif</h3>
+                    <h3 class="card-title">Port Aktif</h3>
                     <div class="card-icon icon-green">
-                        <i class="fas fa-server"></i>
+                        <i class="fas fa-plug"></i>
                     </div>
                 </div>
-                <p class="card-value">8</p>
-                <p class="card-subtitle">Sedang berjalan normal</p>
+                <p class="card-value"><?php echo ($port8111Status ? '1' : '0') + ($port8112Status ? '1' : '0'); ?>/2</p>
+                <p class="card-subtitle">Port yang terhubung</p>
             </div>
 
             <!-- Card 2 -->
             <div class="card">
                 <div class="card-header">
-                    <h3 class="card-title">Total Request</h3>
+                    <h3 class="card-title">Service Aktif</h3>
                     <div class="card-icon icon-blue">
-                        <i class="fas fa-exchange-alt"></i>
+                        <i class="fas fa-server"></i>
                     </div>
                 </div>
-                <p class="card-value">12,345</p>
-                <p class="card-subtitle">Dalam 24 jam terakhir</p>
+                <p class="card-value"><?php echo ($stagingStatus['active'] ? '1' : '0') + ($productionStatus['active'] ? '1' : '0'); ?>/2</p>
+                <p class="card-subtitle">Laravel FrankenPHP</p>
             </div>
 
             <!-- Card 3 -->
@@ -161,9 +342,90 @@ try {
                         <i class="fas fa-heartbeat"></i>
                     </div>
                 </div>
-                <p class="card-value">Normal</p>
-                <p class="card-subtitle">Performa optimal</p>
+                <p class="card-value"><?php echo (($port8111Status && $port8112Status && $stagingStatus['active'] && $productionStatus['active']) ? 'Normal' : 'Perhatian'); ?></p>
+                <p class="card-subtitle"><?php echo date('d M Y H:i'); ?></p>
             </div>
+        </div>
+
+        <!-- Port Status Section -->
+        <div class="status-section">
+            <h3><i class="fas fa-network-wired mr-2"></i> Status Port</h3>
+            <table class="status-table">
+                <thead>
+                    <tr>
+                        <th>Port</th>
+                        <th>Status</th>
+                        <th>Informasi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>8111</td>
+                        <td>
+                            <span class="status-indicator <?php echo $port8111Status ? 'status-active' : 'status-inactive'; ?>"></span>
+                            <?php echo $port8111Status ? 'Terhubung' : 'Tidak Terhubung'; ?>
+                        </td>
+                        <td>FrankenPHP Staging</td>
+                    </tr>
+                    <tr>
+                        <td>8112</td>
+                        <td>
+                            <span class="status-indicator <?php echo $port8112Status ? 'status-active' : 'status-inactive'; ?>"></span>
+                            <?php echo $port8112Status ? 'Terhubung' : 'Tidak Terhubung'; ?>
+                        </td>
+                        <td>FrankenPHP Production</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Service Status Section -->
+        <div class="status-section">
+            <h3><i class="fas fa-cogs mr-2"></i> Status Service Laravel FrankenPHP</h3>
+            <table class="status-table">
+                <thead>
+                    <tr>
+                        <th>Service</th>
+                        <th>Status</th>
+                        <th>Uptime</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Laravel FrankenPHP Staging</td>
+                        <td>
+                            <span class="status-indicator <?php echo $stagingStatus['active'] ? 'status-active' : 'status-inactive'; ?>"></span>
+                            <?php echo ucfirst($stagingStatus['status']); ?>
+                        </td>
+                        <td><?php echo $stagingStatus['uptime'] ?: '-'; ?></td>
+                        <td>
+                            <form method="post" action="" class="restart-form">
+                                <input type="hidden" name="service_name" value="laravel-frankenphp-staging">
+                                <button type="submit" name="restart_service" class="restart-btn">
+                                    <i class="fas fa-sync-alt"></i> Restart
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Laravel FrankenPHP Production</td>
+                        <td>
+                            <span class="status-indicator <?php echo $productionStatus['active'] ? 'status-active' : 'status-inactive'; ?>"></span>
+                            <?php echo ucfirst($productionStatus['status']); ?>
+                        </td>
+                        <td><?php echo $productionStatus['uptime'] ?: '-'; ?></td>
+                        <td>
+                            <form method="post" action="" class="restart-form">
+                                <input type="hidden" name="service_name" value="laravel-frankenphp-production">
+                                <button type="submit" name="restart_service" class="restart-btn">
+                                    <i class="fas fa-sync-alt"></i> Restart
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
         </div>
 
         <!-- Service Status Table -->
@@ -211,7 +473,7 @@ try {
         <div class="actions-container">
             <h2 class="actions-title">Aksi Cepat</h2>
             <div class="actions-grid">
-                <button id="refresh-status" class="action-btn btn-indigo">
+                <button id="refresh-status" class="action-btn btn-indigo" onclick="window.location.reload()">
                     <i class="fas fa-sync-alt mr-2"></i> Refresh Status
                 </button>
                 <button id="download-report" class="action-btn btn-blue">
