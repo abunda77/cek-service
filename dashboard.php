@@ -37,7 +37,7 @@ try {
 
         if (in_array($service_name, $allowed_services)) {
             try {
-                $command = "sudo systemctl restart " . escapeshellarg($service_name) . " 2>&1";
+                $command = "systemctl restart " . escapeshellarg($service_name) . " 2>&1";
                 $output = shell_exec($command);
                 $logger->info('Service di-restart', ['service' => $service_name, 'output' => $output]);
                 $success_message = "Service $service_name berhasil di-restart.";
@@ -58,7 +58,7 @@ try {
 
         if (in_array($service_name, $allowed_services)) {
             try {
-                $command = "sudo systemctl stop " . escapeshellarg($service_name) . " 2>&1";
+                $command = "systemctl stop " . escapeshellarg($service_name) . " 2>&1";
                 $output = shell_exec($command);
                 $logger->info('Service dihentikan', ['service' => $service_name, 'output' => $output]);
                 $success_message = "Service $service_name berhasil dihentikan.";
@@ -79,7 +79,7 @@ try {
 
         if (in_array($service_name, $allowed_services)) {
             try {
-                $command = "sudo systemctl start " . escapeshellarg($service_name) . " 2>&1";
+                $command = "systemctl start " . escapeshellarg($service_name) . " 2>&1";
                 $output = shell_exec($command);
                 $logger->info('Service dimulai', ['service' => $service_name, 'output' => $output]);
                 $success_message = "Service $service_name berhasil dimulai.";
@@ -174,7 +174,7 @@ try {
     function getSystemctlStatus($service)
     {
         try {
-            $command = "sudo systemctl status " . escapeshellarg($service) . " 2>&1";
+            $command = "systemctl status " . escapeshellarg($service) . " 2>&1";
             $output = shell_exec($command);
 
             // Parse output untuk mendapatkan status
