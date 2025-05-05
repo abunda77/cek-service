@@ -37,7 +37,8 @@ try {
 
         if (in_array($service_name, $allowed_services)) {
             try {
-                $command = "systemctl restart " . escapeshellarg($service_name) . " 2>&1";
+                // Gunakan path absolut dan tambahkan sudo
+                $command = "sudo /bin/systemctl restart " . escapeshellarg($service_name) . " 2>&1";
                 $output = shell_exec($command);
                 $logger->info('Service di-restart', ['service' => $service_name, 'output' => $output]);
                 $success_message = "Service $service_name berhasil di-restart.";
@@ -58,7 +59,8 @@ try {
 
         if (in_array($service_name, $allowed_services)) {
             try {
-                $command = "systemctl stop " . escapeshellarg($service_name) . " 2>&1";
+                // Gunakan path absolut dan tambahkan sudo
+                $command = "sudo /bin/systemctl stop " . escapeshellarg($service_name) . " 2>&1";
                 $output = shell_exec($command);
                 $logger->info('Service dihentikan', ['service' => $service_name, 'output' => $output]);
                 $success_message = "Service $service_name berhasil dihentikan.";
@@ -79,7 +81,8 @@ try {
 
         if (in_array($service_name, $allowed_services)) {
             try {
-                $command = "systemctl start " . escapeshellarg($service_name) . " 2>&1";
+                // Gunakan path absolut dan tambahkan sudo
+                $command = "sudo /bin/systemctl start " . escapeshellarg($service_name) . " 2>&1";
                 $output = shell_exec($command);
                 $logger->info('Service dimulai', ['service' => $service_name, 'output' => $output]);
                 $success_message = "Service $service_name berhasil dimulai.";
@@ -174,8 +177,20 @@ try {
     function getSystemctlStatus($service)
     {
         try {
-            $command = "systemctl status " . escapeshellarg($service) . " 2>&1";
+            // Gunakan path absolut dan tambahkan sudo
+            $command = "sudo /bin/systemctl status " . escapeshellarg($service) . " 2>&1";
             $output = shell_exec($command);
+
+            // Debugging: log output raw jika kosong
+            if (empty($output)) {
+                error_log("getSystemctlStatus output kosong untuk service: $service");
+                // Coba alternatif tanpa sudo
+                $command_alt = "/bin/systemctl status " . escapeshellarg($service) . " 2>&1";
+                $output = shell_exec($command_alt);
+                if (empty($output)) {
+                    error_log("Alternatif juga gagal untuk service: $service");
+                }
+            }
 
             // Parse output untuk mendapatkan status
             $active = false;
@@ -211,6 +226,7 @@ try {
                 'raw_output' => $output
             ];
         } catch (Exception $e) {
+            error_log("Error in getSystemctlStatus: " . $e->getMessage());
             return [
                 'active' => false,
                 'status' => 'error',
