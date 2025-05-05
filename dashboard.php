@@ -51,6 +51,48 @@ try {
         }
     }
 
+    // Proses stop service jika diminta
+    if (isset($_POST['stop_service']) && !empty($_POST['service_name'])) {
+        $service_name = $_POST['service_name'];
+        $allowed_services = ['laravel-frankenphp-staging', 'laravel-frankenphp-production'];
+
+        if (in_array($service_name, $allowed_services)) {
+            try {
+                $command = "systemctl stop " . escapeshellarg($service_name) . " 2>&1";
+                $output = shell_exec($command);
+                $logger->info('Service dihentikan', ['service' => $service_name, 'output' => $output]);
+                $success_message = "Service $service_name berhasil dihentikan.";
+            } catch (Exception $e) {
+                $logger->error('Gagal menghentikan service', ['service' => $service_name, 'error' => $e->getMessage()]);
+                $error_message = "Gagal menghentikan service $service_name: " . $e->getMessage();
+            }
+        } else {
+            $logger->warning('Percobaan stop service tidak diizinkan', ['service' => $service_name]);
+            $error_message = "Service tidak diizinkan untuk dihentikan.";
+        }
+    }
+
+    // Proses start service jika diminta
+    if (isset($_POST['start_service']) && !empty($_POST['service_name'])) {
+        $service_name = $_POST['service_name'];
+        $allowed_services = ['laravel-frankenphp-staging', 'laravel-frankenphp-production'];
+
+        if (in_array($service_name, $allowed_services)) {
+            try {
+                $command = "systemctl start " . escapeshellarg($service_name) . " 2>&1";
+                $output = shell_exec($command);
+                $logger->info('Service dimulai', ['service' => $service_name, 'output' => $output]);
+                $success_message = "Service $service_name berhasil dimulai.";
+            } catch (Exception $e) {
+                $logger->error('Gagal memulai service', ['service' => $service_name, 'error' => $e->getMessage()]);
+                $error_message = "Gagal memulai service $service_name: " . $e->getMessage();
+            }
+        } else {
+            $logger->warning('Percobaan start service tidak diizinkan', ['service' => $service_name]);
+            $error_message = "Service tidak diizinkan untuk dimulai.";
+        }
+    }
+
     // Proses logout
     if (isset($_GET['logout'])) {
         $logger->info('Pengguna logout', ['username' => $_SESSION['username'] ?? 'unknown']);
@@ -296,6 +338,40 @@ try {
             background-color: #d97706;
         }
 
+        .stop-btn {
+            background-color: #ef4444;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-right: 4px;
+        }
+
+        .stop-btn:hover {
+            background-color: #dc2626;
+        }
+
+        .start-btn {
+            background-color: #10b981;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8rem;
+            margin-right: 4px;
+        }
+
+        .start-btn:hover {
+            background-color: #059669;
+        }
+
+        .action-btns {
+            white-space: nowrap;
+        }
+
         .status-section {
             background-color: rgba(255, 255, 255, 0.05);
             border-radius: 8px;
@@ -396,6 +472,16 @@ try {
                 <i class="fas fa-exclamation-circle"></i> <?php echo htmlspecialchars($error_message); ?>
             </div>
         <?php endif; ?>
+
+        <div class="status-section" style="margin-bottom: 20px;">
+            <h3><i class="fas fa-info-circle mr-2"></i> Manajemen Service Laravel FrankenPHP</h3>
+            <p>Dashboard ini memungkinkan Anda memantau dan mengelola service Laravel FrankenPHP untuk lingkungan staging dan production.</p>
+            <div style="margin-top: 10px;">
+                <span class="badge badge-success" style="margin-right: 15px;"><i class="fas fa-play"></i> Start: Memulai service yang sedang tidak aktif</span>
+                <span class="badge badge-danger" style="margin-right: 15px;"><i class="fas fa-stop"></i> Stop: Menghentikan service yang sedang berjalan</span>
+                <span class="badge badge-warning"><i class="fas fa-sync-alt"></i> Restart: Memulai ulang service tanpa menghilangkan konfigurasi</span>
+            </div>
+        </div>
 
         <div class="card-grid">
             <!-- Card 1 -->
@@ -510,6 +596,7 @@ try {
                         <th>Service</th>
                         <th>Status</th>
                         <th>Uptime</th>
+                        <th>Detail</th>
                         <th>Aksi</th>
                     </tr>
                 </thead>
@@ -521,13 +608,39 @@ try {
                             <?php echo ucfirst($stagingStatus['status']); ?>
                         </td>
                         <td><?php echo $stagingStatus['uptime'] ?: '-'; ?></td>
-                        <td>
-                            <form method="post" action="" class="restart-form">
-                                <input type="hidden" name="service_name" value="laravel-frankenphp-staging">
-                                <button type="submit" name="restart_service" class="restart-btn">
-                                    <i class="fas fa-sync-alt"></i> Restart
-                                </button>
-                            </form>
+                        <td class="small-text">
+                            <?php
+                            if ($stagingStatus['active']) {
+                                echo htmlspecialchars($stagingStatus['description']);
+                                echo '<br>Port: 8111';
+                                echo $port8111Status ? ' <span class="badge badge-success">Terhubung</span>' : ' <span class="badge badge-danger">Tidak Terhubung</span>';
+                            } else {
+                                echo 'Service tidak aktif';
+                            }
+                            ?>
+                        </td>
+                        <td class="action-btns">
+                            <?php if ($stagingStatus['active']): ?>
+                                <form method="post" action="" class="restart-form">
+                                    <input type="hidden" name="service_name" value="laravel-frankenphp-staging">
+                                    <button type="submit" name="stop_service" class="stop-btn" title="Hentikan service">
+                                        <i class="fas fa-stop"></i> Stop
+                                    </button>
+                                </form>
+                                <form method="post" action="" class="restart-form">
+                                    <input type="hidden" name="service_name" value="laravel-frankenphp-staging">
+                                    <button type="submit" name="restart_service" class="restart-btn" title="Restart service">
+                                        <i class="fas fa-sync-alt"></i> Restart
+                                    </button>
+                                </form>
+                            <?php else: ?>
+                                <form method="post" action="" class="restart-form">
+                                    <input type="hidden" name="service_name" value="laravel-frankenphp-staging">
+                                    <button type="submit" name="start_service" class="start-btn" title="Mulai service">
+                                        <i class="fas fa-play"></i> Start
+                                    </button>
+                                </form>
+                            <?php endif; ?>
                         </td>
                     </tr>
                     <tr>
@@ -537,13 +650,39 @@ try {
                             <?php echo ucfirst($productionStatus['status']); ?>
                         </td>
                         <td><?php echo $productionStatus['uptime'] ?: '-'; ?></td>
-                        <td>
-                            <form method="post" action="" class="restart-form">
-                                <input type="hidden" name="service_name" value="laravel-frankenphp-production">
-                                <button type="submit" name="restart_service" class="restart-btn">
-                                    <i class="fas fa-sync-alt"></i> Restart
-                                </button>
-                            </form>
+                        <td class="small-text">
+                            <?php
+                            if ($productionStatus['active']) {
+                                echo htmlspecialchars($productionStatus['description']);
+                                echo '<br>Port: 8112';
+                                echo $port8112Status ? ' <span class="badge badge-success">Terhubung</span>' : ' <span class="badge badge-danger">Tidak Terhubung</span>';
+                            } else {
+                                echo 'Service tidak aktif';
+                            }
+                            ?>
+                        </td>
+                        <td class="action-btns">
+                            <?php if ($productionStatus['active']): ?>
+                                <form method="post" action="" class="restart-form">
+                                    <input type="hidden" name="service_name" value="laravel-frankenphp-production">
+                                    <button type="submit" name="stop_service" class="stop-btn" title="Hentikan service">
+                                        <i class="fas fa-stop"></i> Stop
+                                    </button>
+                                </form>
+                                <form method="post" action="" class="restart-form">
+                                    <input type="hidden" name="service_name" value="laravel-frankenphp-production">
+                                    <button type="submit" name="restart_service" class="restart-btn" title="Restart service">
+                                        <i class="fas fa-sync-alt"></i> Restart
+                                    </button>
+                                </form>
+                            <?php else: ?>
+                                <form method="post" action="" class="restart-form">
+                                    <input type="hidden" name="service_name" value="laravel-frankenphp-production">
+                                    <button type="submit" name="start_service" class="start-btn" title="Mulai service">
+                                        <i class="fas fa-play"></i> Start
+                                    </button>
+                                </form>
+                            <?php endif; ?>
                         </td>
                     </tr>
                 </tbody>
@@ -623,6 +762,37 @@ try {
     <script>
         // JavaScript untuk menampilkan lebih banyak port
         document.addEventListener('DOMContentLoaded', function() {
+            // Konfirmasi sebelum melakukan tindakan pada service
+            const actionForms = document.querySelectorAll('.restart-form');
+            actionForms.forEach(form => {
+                form.addEventListener('submit', function(e) {
+                    e.preventDefault();
+
+                    let serviceName = this.querySelector('input[name="service_name"]').value;
+                    let actionType = '';
+
+                    if (this.querySelector('button[name="restart_service"]')) {
+                        actionType = 'restart';
+                    } else if (this.querySelector('button[name="stop_service"]')) {
+                        actionType = 'stop';
+                    } else if (this.querySelector('button[name="start_service"]')) {
+                        actionType = 'start';
+                    }
+
+                    let actionText = {
+                        'restart': 'me-restart',
+                        'stop': 'menghentikan',
+                        'start': 'memulai'
+                    };
+
+                    let confirmMessage = `Apakah Anda yakin ingin ${actionText[actionType]} service ${serviceName}?`;
+
+                    if (confirm(confirmMessage)) {
+                        this.submit();
+                    }
+                });
+            });
+
             const showMoreButton = document.getElementById('show-more-ports');
             if (showMoreButton) {
                 showMoreButton.addEventListener('click', function() {
