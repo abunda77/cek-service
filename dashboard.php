@@ -206,7 +206,7 @@ try {
                 chmod($wrapper_script, 0755);
             }
 
-            $command = "sudo " . escapeshellarg($wrapper_script) . " status " . escapeshellarg($service) . " 2>&1";
+            $command = "" . escapeshellarg($wrapper_script) . " status " . escapeshellarg($service) . " 2>&1";
             $output = shell_exec($command);
 
             // Debug: Log output jika kosong
