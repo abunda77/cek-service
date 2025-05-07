@@ -1,228 +1,187 @@
 <?php
-// Nonaktifkan batas waktu eksekusi
-set_time_limit(0);
 
-// Tampilkan semua error
+/**
+ * Script diagnostik untuk menguji apakah systemctl berhasil dijalankan
+ * Hanya untuk keperluan troubleshooting
+ */
+
+// Tampilkan semua error untuk debug
 ini_set('display_errors', 1);
 ini_set('display_startup_errors', 1);
 error_reporting(E_ALL);
 
-// Fungsi untuk menampilkan header bagian
-function printHeader($title)
-{
-    echo "<h2 style='background-color: #4a5568; color: white; padding: 10px; border-radius: 5px;'>$title</h2>";
-}
+echo "<h1>Diagnostik Systemctl</h1>";
+echo "<p>Script ini akan mencoba berbagai metode untuk menjalankan perintah systemctl dan menampilkan hasilnya.</p>";
 
-// Fungsi untuk menampilkan pesan status
-function printStatus($message, $status)
-{
-    $color = ($status === "OK") ? "#10b981" : "#ef4444";
-    echo "<div style='margin-bottom: 10px;'>";
-    echo "<strong>$message:</strong> ";
-    echo "<span style='color: $color; font-weight: bold;'>$status</span>";
+// Definisikan layanan untuk dites
+$test_service = 'laravel-frankenphp-staging';
+
+echo "<h2>1. Metode sudo langsung</h2>";
+try {
+    $command_direct = "sudo systemctl status $test_service 2>&1";
+    echo "<pre>Menjalankan: $command_direct</pre>";
+
+    $output_direct = shell_exec($command_direct);
+    if (!empty($output_direct)) {
+        echo "<div style='background-color: #d1e7dd; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+        echo "<strong>BERHASIL!</strong> Output:<br><pre>" . htmlspecialchars($output_direct) . "</pre>";
+        echo "</div>";
+    } else {
+        echo "<div style='background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+        echo "<strong>GAGAL!</strong> Tidak ada output yang diterima.";
+        echo "</div>";
+    }
+} catch (Exception $e) {
+    echo "<div style='background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+    echo "<strong>GAGAL dengan Exception!</strong> Error: " . $e->getMessage();
     echo "</div>";
 }
 
-// Fungsi untuk mencoba menjalankan perintah
-function runCommand($command)
-{
-    echo "<pre style='background-color: #1e293b; color: #e2e8f0; padding: 10px; border-radius: 5px; overflow-x: auto;'>";
-    echo "$ $command\n";
-    $output = shell_exec("$command 2>&1");
-    echo htmlspecialchars($output ?: "Tidak ada output atau perintah gagal dijalankan.");
-    echo "</pre>";
-}
+echo "<h2>2. Metode service_control.sh</h2>";
+try {
+    $wrapper_script = __DIR__ . "/service_control.sh";
 
-// Fungsi untuk memeriksa apakah fungsi PHP diaktifkan
-function isFunctionEnabled($function_name)
-{
-    $disabled_functions = explode(',', ini_get('disable_functions'));
-    return !in_array($function_name, $disabled_functions);
-}
+    // Periksa keberadaan dan izin file
+    if (!file_exists($wrapper_script)) {
+        echo "<div style='background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+        echo "<strong>GAGAL!</strong> File script tidak ditemukan: $wrapper_script";
+        echo "</div>";
+    } else {
+        echo "<pre>Script ditemukan: $wrapper_script</pre>";
 
-// Tampilkan HTML header
-?>
-<!DOCTYPE html>
-<html lang="id">
+        // Periksa izin
+        $perms = substr(sprintf('%o', fileperms($wrapper_script)), -4);
+        echo "<pre>Izin file: $perms</pre>";
 
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Diagnostik Systemctl</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            line-height: 1.6;
-            color: #333;
-            max-width: 1200px;
-            margin: 0 auto;
-            padding: 20px;
-            background-color: #f8fafc;
+        if (!is_executable($wrapper_script)) {
+            echo "<pre>Script tidak executable, mencoba chmod +x...</pre>";
+            chmod($wrapper_script, 0755);
+            $perms_after = substr(sprintf('%o', fileperms($wrapper_script)), -4);
+            echo "<pre>Izin file setelah chmod: $perms_after</pre>";
         }
 
-        .container {
-            background-color: white;
-            padding: 20px;
-            border-radius: 8px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-        }
+        $command_wrapper = "sudo " . escapeshellarg($wrapper_script) . " status " . escapeshellarg($test_service) . " 2>&1";
+        echo "<pre>Menjalankan: $command_wrapper</pre>";
 
-        .info {
-            background-color: #e0f2fe;
-            border-left: 4px solid #0ea5e9;
-            padding: 10px 15px;
-            margin-bottom: 20px;
-        }
-
-        .warning {
-            background-color: #fef9c3;
-            border-left: 4px solid #eab308;
-            padding: 10px 15px;
-            margin-bottom: 20px;
-        }
-
-        .error {
-            background-color: #fee2e2;
-            border-left: 4px solid #ef4444;
-            padding: 10px 15px;
-            margin-bottom: 20px;
-        }
-
-        table {
-            width: 100%;
-            border-collapse: collapse;
-            margin-bottom: 20px;
-        }
-
-        table,
-        th,
-        td {
-            border: 1px solid #e5e7eb;
-        }
-
-        th,
-        td {
-            padding: 8px 12px;
-            text-align: left;
-        }
-
-        th {
-            background-color: #f3f4f6;
-        }
-    </style>
-</head>
-
-<body>
-    <div class="container">
-        <h1>Diagnostik Systemctl untuk PHP</h1>
-        <div class="info">
-            <p>
-                Tool ini akan memeriksa konfigurasi PHP dan sistem Anda untuk mendiagnosis masalah dengan perintah systemctl.
-                Informasi sensitif mungkin ditampilkan - gunakan dengan hati-hati dan hanya pada lingkungan pengembangan.
-            </p>
-        </div>
-
-        <?php
-        // 1. Informasi Sistem
-        printHeader("Informasi Sistem");
-        echo "<table>";
-        echo "<tr><td>PHP Version</td><td>" . phpversion() . "</td></tr>";
-        echo "<tr><td>User PHP</td><td>" . exec('whoami') . "</td></tr>";
-        echo "<tr><td>Server</td><td>" . $_SERVER['SERVER_SOFTWARE'] . "</td></tr>";
-        echo "<tr><td>OS</td><td>" . php_uname() . "</td></tr>";
-        echo "</table>";
-
-        // 2. Periksa apakah fungsi shell diaktifkan
-        printHeader("Fungsi PHP yang Dibutuhkan");
-        $functions = ['shell_exec', 'exec', 'system', 'passthru', 'escapeshellarg', 'escapeshellcmd'];
-        echo "<table>";
-        echo "<tr><th>Fungsi</th><th>Status</th></tr>";
-        foreach ($functions as $function) {
-            $status = isFunctionEnabled($function) ? "Diaktifkan ✅" : "Dinonaktifkan ❌";
-            $color = isFunctionEnabled($function) ? "#10b981" : "#ef4444";
-            echo "<tr><td>$function()</td><td style='color: $color;'>$status</td></tr>";
-        }
-        echo "</table>";
-
-        // 3. Periksa path systemctl 
-        printHeader("Path Systemctl");
-        runCommand("which systemctl");
-        runCommand("whereis systemctl");
-
-        // 4. Periksa sudo
-        printHeader("Konfigurasi Sudo");
-        echo "<div class='info'>Catatan: Output kosong mungkin berarti masalah izin.</div>";
-        runCommand("sudo -l");
-
-        // 5. Periksa service status
-        printHeader("Tes Status Service");
-        runCommand("systemctl status nginx 2>&1");
-        runCommand("/bin/systemctl status nginx 2>&1");
-        runCommand("sudo systemctl status nginx 2>&1");
-
-        // 6. Periksa error log
-        printHeader("Error Log PHP Terakhir");
-        $log_file = ini_get('error_log');
-        if ($log_file && file_exists($log_file)) {
-            runCommand("tail -n 20 " . escapeshellarg($log_file));
+        $output_wrapper = shell_exec($command_wrapper);
+        if (!empty($output_wrapper)) {
+            echo "<div style='background-color: #d1e7dd; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+            echo "<strong>BERHASIL!</strong> Output:<br><pre>" . htmlspecialchars($output_wrapper) . "</pre>";
+            echo "</div>";
         } else {
-            echo "<div class='warning'>File log PHP tidak ditemukan atau tidak dapat diakses.</div>";
+            echo "<div style='background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+            echo "<strong>GAGAL!</strong> Tidak ada output yang diterima.";
+            echo "</div>";
+        }
+    }
+} catch (Exception $e) {
+    echo "<div style='background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+    echo "<strong>GAGAL dengan Exception!</strong> Error: " . $e->getMessage();
+    echo "</div>";
+}
+
+echo "<h2>3. Metode secure_service_control.sh</h2>";
+try {
+    $secure_script = __DIR__ . "/secure_service_control.sh";
+
+    // Periksa keberadaan dan izin file
+    if (!file_exists($secure_script)) {
+        echo "<div style='background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+        echo "<strong>GAGAL!</strong> File script tidak ditemukan: $secure_script";
+        echo "</div>";
+    } else {
+        echo "<pre>Script ditemukan: $secure_script</pre>";
+
+        // Periksa izin
+        $perms = substr(sprintf('%o', fileperms($secure_script)), -4);
+        echo "<pre>Izin file: $perms</pre>";
+
+        if (!is_executable($secure_script)) {
+            echo "<pre>Script tidak executable, mencoba chmod +x...</pre>";
+            chmod($secure_script, 0755);
+            $perms_after = substr(sprintf('%o', fileperms($secure_script)), -4);
+            echo "<pre>Izin file setelah chmod: $perms_after</pre>";
         }
 
-        // 7. Rekomendasi
-        printHeader("Rekomendasi");
-        ?>
-        <div class="info">
-            <ol>
-                <li>
-                    <strong>Masalah Izin Sudo:</strong> Tambahkan izin sudo untuk pengguna web server dengan mengedit file sudoers:
-                    <pre>sudo visudo</pre>
-                    Tambahkan baris berikut (ganti www-data dengan pengguna web server Anda):
-                    <pre>www-data ALL=(ALL) NOPASSWD: /bin/systemctl status laravel-frankenphp-staging, /bin/systemctl status laravel-frankenphp-production, /bin/systemctl restart laravel-frankenphp-staging, /bin/systemctl restart laravel-frankenphp-production, /bin/systemctl start laravel-frankenphp-staging, /bin/systemctl start laravel-frankenphp-production, /bin/systemctl stop laravel-frankenphp-staging, /bin/systemctl stop laravel-frankenphp-production</pre>
-                </li>
-                <li>
-                    <strong>Aktifkan Fungsi:</strong> Jika shell_exec dinonaktifkan, edit php.ini dan hapus shell_exec dari disable_functions:
-                    <pre>disable_functions = ... (hapus shell_exec, exec, dll dari daftar)</pre>
-                </li>
-                <li>
-                    <strong>Gunakan Path Absolut:</strong> Ubah kode PHP Anda untuk menggunakan path absolut ke systemctl:
-                    <pre>$command = "/bin/systemctl status " . escapeshellarg($service_name) . " 2>&1";</pre>
-                </li>
-                <li>
-                    <strong>Buat Script Wrapper:</strong> Alternatif, buat script bash yang dijalankan melalui sudo:
-                    <pre>
-#!/bin/bash
-# /usr/local/bin/service_control.sh
-case "$1" in
-    "status"|"restart"|"start"|"stop")
-        case "$2" in
-            "laravel-frankenphp-staging"|"laravel-frankenphp-production")
-                systemctl $1 $2
-                ;;
-            *)
-                echo "Service tidak diizinkan"
-                exit 1
-                ;;
-        esac
-        ;;
-    *)
-        echo "Perintah tidak diizinkan"
-        exit 1
-        ;;
-esac
-            </pre>
-                    Kemudian tambahkan sudoers:
-                    <pre>www-data ALL=(ALL) NOPASSWD: /usr/local/bin/service_control.sh</pre>
-                    Dan panggil dari PHP:
-                    <pre>$command = "sudo /usr/local/bin/service_control.sh restart " . escapeshellarg($service_name) . " 2>&1";</pre>
-                </li>
-            </ol>
-        </div>
+        $command_secure = "sudo " . escapeshellarg($secure_script) . " status " . escapeshellarg($test_service) . " 2>&1";
+        echo "<pre>Menjalankan: $command_secure</pre>";
 
-    </div>
-</body>
+        $output_secure = shell_exec($command_secure);
+        if (!empty($output_secure)) {
+            echo "<div style='background-color: #d1e7dd; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+            echo "<strong>BERHASIL!</strong> Output:<br><pre>" . htmlspecialchars($output_secure) . "</pre>";
+            echo "</div>";
+        } else {
+            echo "<div style='background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+            echo "<strong>GAGAL!</strong> Tidak ada output yang diterima.";
+            echo "</div>";
+        }
+    }
+} catch (Exception $e) {
+    echo "<div style='background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+    echo "<strong>GAGAL dengan Exception!</strong> Error: " . $e->getMessage();
+    echo "</div>";
+}
 
-</html>
-<?php
-// Akhir file
-?>
+echo "<h2>4. Metode File Interface (command_interface.sh)</h2>";
+try {
+    // Include file interface
+    if (file_exists(__DIR__ . '/file_interface.php')) {
+        require_once __DIR__ . '/file_interface.php';
+
+        echo "<pre>File interface ditemukan. Mencoba menggunakan run_systemctl_command()...</pre>";
+
+        // Periksa direktori
+        if (!is_dir(COMMAND_DIR)) {
+            echo "<pre>Direktori command tidak ditemukan. Mencoba membuat...</pre>";
+            mkdir(COMMAND_DIR, 0755, true);
+        }
+        if (!is_dir(RESULT_DIR)) {
+            echo "<pre>Direktori result tidak ditemukan. Mencoba membuat...</pre>";
+            mkdir(RESULT_DIR, 0755, true);
+        }
+
+        // Coba jalankan command
+        $result = run_systemctl_command('status', $test_service);
+
+        if ($result['success']) {
+            echo "<div style='background-color: #d1e7dd; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+            echo "<strong>BERHASIL!</strong> Output:<br><pre>" . htmlspecialchars($result['output']) . "</pre>";
+            echo "</div>";
+        } else {
+            echo "<div style='background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+            echo "<strong>GAGAL!</strong> Error: " . htmlspecialchars($result['error']);
+            echo "</div>";
+
+            // Periksa apakah cron job berjalan
+            echo "<pre>Tip: Pastikan command_interface.sh sudah di-setup sebagai cron job untuk user alwyzon.</pre>";
+            echo "<pre>Periksa dengan: grep CRON /var/log/syslog | grep command_interface</pre>";
+        }
+    } else {
+        echo "<div style='background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+        echo "<strong>GAGAL!</strong> File file_interface.php tidak ditemukan.";
+        echo "</div>";
+    }
+} catch (Exception $e) {
+    echo "<div style='background-color: #f8d7da; padding: 10px; border-radius: 5px; margin-bottom: 15px;'>";
+    echo "<strong>GAGAL dengan Exception!</strong> Error: " . $e->getMessage();
+    echo "</div>";
+}
+
+echo "<h2>Ringkasan</h2>";
+echo "<p>Jika semua metode gagal:</p>";
+echo "<ol>";
+echo "<li>Periksa konfigurasi sudo untuk web server (www-data/apache/etc)</li>";
+echo "<li>Periksa apakah script wrapper memiliki izin eksekusi dan path yang benar</li>";
+echo "<li>Periksa log di /tmp/secure_service_control.log dan /tmp/service_control.log</li>";
+echo "<li>Untuk metode file interface, pastikan cron job sudah berjalan untuk user alwyzon</li>";
+echo "<li>Pertimbangkan untuk menambahkan rule sudoers khusus untuk web server</li>";
+echo "</ol>";
+
+echo "<h2>Periksa Informasi Pengguna</h2>";
+echo "<pre>";
+echo "Current user: " . exec('whoami') . "\n";
+echo "User groups: " . exec('groups') . "\n";
+echo "Sudo permissions:\n";
+passthru('sudo -l 2>&1');
+echo "</pre>";

@@ -37,8 +37,15 @@ try {
 
         if (in_array($service_name, $allowed_services)) {
             try {
-                // Gunakan path absolut dan tambahkan sudo
-                $command = "sudo /bin/systemctl restart " . escapeshellarg($service_name) . " 2>&1";
+                // Gunakan script wrapper yang aman
+                $wrapper_script = __DIR__ . "/secure_service_control.sh";
+
+                // Berikan izin eksekusi jika belum
+                if (!is_executable($wrapper_script)) {
+                    chmod($wrapper_script, 0755);
+                }
+
+                $command = "sudo " . escapeshellarg($wrapper_script) . " restart " . escapeshellarg($service_name) . " 2>&1";
                 $output = shell_exec($command);
                 $logger->info('Service di-restart', ['service' => $service_name, 'output' => $output]);
                 $success_message = "Service $service_name berhasil di-restart.";
@@ -59,8 +66,15 @@ try {
 
         if (in_array($service_name, $allowed_services)) {
             try {
-                // Gunakan path absolut dan tambahkan sudo
-                $command = "sudo /bin/systemctl stop " . escapeshellarg($service_name) . " 2>&1";
+                // Gunakan script wrapper yang aman
+                $wrapper_script = __DIR__ . "/secure_service_control.sh";
+
+                // Berikan izin eksekusi jika belum
+                if (!is_executable($wrapper_script)) {
+                    chmod($wrapper_script, 0755);
+                }
+
+                $command = "sudo " . escapeshellarg($wrapper_script) . " stop " . escapeshellarg($service_name) . " 2>&1";
                 $output = shell_exec($command);
                 $logger->info('Service dihentikan', ['service' => $service_name, 'output' => $output]);
                 $success_message = "Service $service_name berhasil dihentikan.";
@@ -81,8 +95,15 @@ try {
 
         if (in_array($service_name, $allowed_services)) {
             try {
-                // Gunakan path absolut dan tambahkan sudo
-                $command = "sudo /bin/systemctl start " . escapeshellarg($service_name) . " 2>&1";
+                // Gunakan script wrapper yang aman
+                $wrapper_script = __DIR__ . "/secure_service_control.sh";
+
+                // Berikan izin eksekusi jika belum
+                if (!is_executable($wrapper_script)) {
+                    chmod($wrapper_script, 0755);
+                }
+
+                $command = "sudo " . escapeshellarg($wrapper_script) . " start " . escapeshellarg($service_name) . " 2>&1";
                 $output = shell_exec($command);
                 $logger->info('Service dimulai', ['service' => $service_name, 'output' => $output]);
                 $success_message = "Service $service_name berhasil dimulai.";
@@ -177,19 +198,21 @@ try {
     function getSystemctlStatus($service)
     {
         try {
-            // Gunakan path absolut dan tambahkan sudo
-            $command = "sudo /bin/systemctl status " . escapeshellarg($service) . " 2>&1";
+            // Gunakan script wrapper yang aman
+            $wrapper_script = __DIR__ . "/secure_service_control.sh";
+
+            // Berikan izin eksekusi jika belum
+            if (!is_executable($wrapper_script)) {
+                chmod($wrapper_script, 0755);
+            }
+
+            $command = "sudo " . escapeshellarg($wrapper_script) . " status " . escapeshellarg($service) . " 2>&1";
             $output = shell_exec($command);
 
-            // Debugging: log output raw jika kosong
+            // Debug: Log output jika kosong
             if (empty($output)) {
                 error_log("getSystemctlStatus output kosong untuk service: $service");
-                // Coba alternatif tanpa sudo
-                $command_alt = "/bin/systemctl status " . escapeshellarg($service) . " 2>&1";
-                $output = shell_exec($command_alt);
-                if (empty($output)) {
-                    error_log("Alternatif juga gagal untuk service: $service");
-                }
+                error_log("Command yang dijalankan: $command");
             }
 
             // Parse output untuk mendapatkan status
@@ -240,13 +263,31 @@ try {
     // Fungsi untuk mendapatkan status layanan (dummy function)
     function getServiceStatus($logger)
     {
+        // Termasuk file interface
+        require_once 'file_interface.php';
+
         // Ini adalah contoh data statis, dalam implementasi sebenarnya
         // fungsi ini akan memanggil perintah sistem seperti 'systemctl'
         try {
-            // Contoh untuk implementasi sebenarnya:
-            // $output = shell_exec('systemctl status nginx 2>&1');
-            // return parseServiceOutput($output);
+            // Menggunakan interface file untuk mendapatkan status
+            // Percobaan mengambil status beberapa service utama
+            $result_staging = run_systemctl_command('status', 'laravel-frankenphp-staging');
+            $result_production = run_systemctl_command('status', 'laravel-frankenphp-production');
 
+            // Log hasil
+            if (!$result_staging['success']) {
+                $logger->warning('Gagal mendapatkan status staging via file interface', [
+                    'error' => $result_staging['error']
+                ]);
+            }
+
+            if (!$result_production['success']) {
+                $logger->warning('Gagal mendapatkan status production via file interface', [
+                    'error' => $result_production['error']
+                ]);
+            }
+
+            // Untuk contoh, tetap menggunakan data dummy
             return [
                 ['name' => 'API Gateway', 'status' => 'online', 'uptime' => '99.9%', 'requests' => '245'],
                 ['name' => 'Authentication Service', 'status' => 'online', 'uptime' => '99.8%', 'requests' => '187'],
