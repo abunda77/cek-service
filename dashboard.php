@@ -45,7 +45,7 @@ try {
                     chmod($wrapper_script, 0755);
                 }
 
-                $command = "sudo " . escapeshellarg($wrapper_script) . " restart " . escapeshellarg($service_name) . " 2>&1";
+                $command = " " . escapeshellarg($wrapper_script) . " restart " . escapeshellarg($service_name) . " 2>&1";
                 $output = shell_exec($command);
                 $logger->info('Service di-restart', ['service' => $service_name, 'output' => $output]);
                 $success_message = "Service $service_name berhasil di-restart.";
@@ -74,7 +74,7 @@ try {
                     chmod($wrapper_script, 0755);
                 }
 
-                $command = "sudo " . escapeshellarg($wrapper_script) . " stop " . escapeshellarg($service_name) . " 2>&1";
+                $command = " " . escapeshellarg($wrapper_script) . " stop " . escapeshellarg($service_name) . " 2>&1";
                 $output = shell_exec($command);
                 $logger->info('Service dihentikan', ['service' => $service_name, 'output' => $output]);
                 $success_message = "Service $service_name berhasil dihentikan.";
@@ -103,7 +103,7 @@ try {
                     chmod($wrapper_script, 0755);
                 }
 
-                $command = "sudo " . escapeshellarg($wrapper_script) . " start " . escapeshellarg($service_name) . " 2>&1";
+                $command = " " . escapeshellarg($wrapper_script) . " start " . escapeshellarg($service_name) . " 2>&1";
                 $output = shell_exec($command);
                 $logger->info('Service dimulai', ['service' => $service_name, 'output' => $output]);
                 $success_message = "Service $service_name berhasil dimulai.";
