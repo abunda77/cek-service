@@ -1,28 +1,44 @@
 # Pengelola Layanan Laravel FrankenPHP
 
-Pengelola Layanan Laravel FrankenPHP adalah alat command line sederhana untuk memonitor dan mengelola layanan Laravel FrankenPHP di lingkungan server Linux. Aplikasi ini memudahkan administrator untuk mengecek status, memulai, menghentikan, atau me-restart layanan Laravel FrankenPHP tanpa perlu mengetikkan perintah systemctl yang panjang.
+Proyek ini adalah alat bantu sederhana untuk memudahkan pengaturan layanan Laravel FrankenPHP di Linux. Dengan tool ini, pengembang dan admin sistem dapat:
+
+- Memeriksa status layanan staging dan production
+- Menjalankan layanan
+- Menghentikan layanan
+- Me-restart layanan
+
+Keunggulan utamanya adalah:
+
+- Menggantikan perintah `systemctl` yang rumit
+- Menghemat waktu
+- Mengurangi kesalahan pengetikan
+
+Tersedia dua cara penggunaan:
+
+1. Antarmuka baris perintah (CLI)
+2. Antarmuka web menggunakan Streamlit yang lebih mudah dan menarik
 
 ## Fitur Utama
 
 - **Pemeriksaan Status**: Memeriksa status layanan Laravel FrankenPHP (staging dan production)
-- **Pengelolaan Layanan**: Dapat melakukan start, stop, dan restart layanan
+- **Pengelolaan Layanan**: Memulai, menghentikan, dan me-restart layanan
 - **Tampilan Berwarna**: Output berwarna untuk memudahkan pembacaan status
 - **Format Tabel**: Menampilkan informasi dalam format tabel yang rapi
 - **Dua Antarmuka**: CLI (Command Line Interface) dan Web Interface menggunakan Streamlit
 
 ## Teknologi yang Digunakan
 
-- Python 3.6+
+- Python 3.8+ (direkomendasikan untuk fitur terbaru Streamlit)
 - Colorama untuk output berwarna
 - Tabulate untuk tampilan tabel
 - Subproses untuk eksekusi perintah shell
 - Argparse untuk pengelolaan parameter command line
-- Streamlit untuk web interface
+- Streamlit untuk web interface dengan fitur modern
 - PIL (Pillow) untuk generasi captcha
 
 ## Persyaratan Sistem
 
-- Python 3.6 atau lebih tinggi
+- Python 3.8 atau lebih tinggi (direkomendasikan 3.10+ untuk semua fitur terbaru Streamlit)
 - Sistem operasi Linux dengan SystemD
 - Akses sudo untuk menjalankan perintah systemctl
 - Paket Python: colorama, tabulate, streamlit, pillow
@@ -42,17 +58,40 @@ Pengelola Layanan Laravel FrankenPHP adalah alat command line sederhana untuk me
    pip install colorama tabulate streamlit pillow
    ```
 
-3. Berikan izin eksekusi ke script:
+3. Berikan izin eksekusi pada skrip:
 
    ```bash
    chmod +x cekservice.py
+   ```
+
+4. (Opsional) Buat file konfigurasi secrets.toml untuk fitur otentikasi dan koneksi database:
+
+   ```bash
+   mkdir -p .streamlit
+   touch .streamlit/secrets.toml
+   ```
+
+   Dan tambahkan konfigurasi yang diperlukan:
+
+   ```toml
+   # Konfigurasi otentikasi (jika menggunakan fitur login)
+   [auth]
+   redirect_uri = "http://localhost:8501/oauth2callback"
+   cookie_secret = "random_secret_key"
+   client_id = "your_client_id"
+   client_secret = "your_client_secret"
+
+   # Konfigurasi database (jika menggunakan koneksi database)
+   [connections.db]
+   type = "sql"
+   url = "sqlite:///database.db"
    ```
 
 ## Penggunaan
 
 ### Command Line Interface (CLI)
 
-Script dapat dijalankan dengan berbagai parameter:
+Skrip ini dapat dijalankan dengan berbagai parameter:
 
 ```bash
 python3 cekservice.py --service [staging|production|all] --action [status|start|stop|restart]
@@ -94,7 +133,7 @@ Parameter yang tersedia:
 
 ### Web Interface
 
-Aplikasi juga menyediakan antarmuka web berbasis Streamlit untuk penggunaan yang lebih visual dan user-friendly:
+Aplikasi ini juga menyediakan antarmuka web dengan Streamlit agar lebih mudah digunakan dan tampilannya lebih menarik:
 
 ```bash
 streamlit run cekservice_streamlit.py
@@ -102,11 +141,28 @@ streamlit run cekservice_streamlit.py
 
 Fitur web interface:
 
-- **Antarmuka Visual**: UI web yang intuitif dan modern
+- **Antarmuka Visual**: UI web yang intuitif dan modern dengan fitur-fitur terbaru Streamlit
 - **Sistem Login**: Terlindungi dengan username, password, dan captcha
-- **Dashboard**: Tampilan status layanan dengan indikator warna
-- **Manajemen Layanan**: Kontrol penuh untuk start, stop, dan restart layanan
-- **Multi-layanan**: Mengelola layanan staging dan production sekaligus atau secara individual
+- **Dashboard**:
+  - Tampilan status layanan dengan indikator warna
+  - Tabel data interaktif dengan fitur pencarian dan pengurutan
+  - Status container untuk menampilkan proses yang sedang berjalan
+- **Manajemen Layanan**:
+  - Kontrol penuh untuk start, stop, dan restart layanan
+  - Feedback visual langsung untuk setiap aksi
+  - Notifikasi toast untuk konfirmasi aksi
+- **Multi-layanan**:
+  - Mengelola layanan staging dan production sekaligus atau secara individual
+  - Tampilan status real-time
+  - Layout responsif dengan kolom yang dapat disesuaikan
+- **Fitur Terbaru Streamlit**:
+  - Antarmuka chat (`st.chat_input` dan `st.chat_message`) untuk interaksi lebih intuitif
+  - Editor data (`st.data_editor`) untuk visualisasi dan pengeditan data interaktif
+  - Koneksi database bawaan (`st.connection`) untuk integrasi SQL, PostgreSQL, atau Snowflake dengan mudah
+  - Otentikasi pengguna (`st.login`) untuk mengamankan aplikasi dengan Google atau Microsoft
+  - Navigasi halaman otomatis (`st.switch_page`) untuk pengalaman multi-halaman yang lancar
+  - Caching yang dioptimalkan (`st.cache_data` dan `st.cache_resource`) untuk performa yang lebih baik
+  - Akses ke rahasia (`st.secrets`) untuk menyimpan kredensial API dengan aman
 
 #### Login Credentials (Default)
 
@@ -116,7 +172,7 @@ Fitur web interface:
 
 ## Struktur Kode
 
-- `cekservice.py`: Script utama dengan fungsi-fungsi untuk mengelola layanan
+- `cekservice.py`: Skrip utama berisi fungsi-fungsi untuk mengelola layanan
 
   - `run_command()`: Menjalankan perintah shell
   - `check_service_status()`: Memeriksa status layanan
@@ -124,7 +180,7 @@ Fitur web interface:
   - `print_header()`: Mencetak header aplikasi
   - `main()`: Fungsi utama yang menjalankan aplikasi
 
-- `cekservice_streamlit.py`: Web interface menggunakan Streamlit
+- `cekservice_streamlit.py`: Antarmuka web yang dibuat menggunakan Streamlit
   - `run_command()`: Menjalankan perintah shell
   - `check_service_status()`: Memeriksa status layanan dengan output yang disesuaikan untuk web
   - `manage_service()`: Mengelola layanan dengan output yang disesuaikan untuk web
@@ -134,10 +190,10 @@ Fitur web interface:
 
 ## Keamanan
 
-- Script hanya menjalankan perintah systemctl yang terdefinisi
+- Skrip ini hanya menjalankan perintah `systemctl` yang sudah ditentukan.
 - Validasi input untuk mencegah injeksi perintah
 - Diperlukan akses sudo untuk menjalankan perintah systemctl
-- Web interface dilindungi dengan:
+- Antarmuka web dilindungi dengan:
   - Sistem login dengan username dan password
   - Captcha untuk mencegah brute force
   - Manajemen sesi untuk melacak status otentikasi
@@ -146,7 +202,7 @@ Fitur web interface:
 
 ### Masalah Akses Sudo
 
-Jika terjadi kesalahan terkait izin, pastikan pengguna yang menjalankan script memiliki akses sudo ke perintah systemctl:
+Jika ada kesalahan terkait izin, pastikan pengguna yang menjalankan skrip memiliki akses `sudo` untuk perintah `systemctl`:
 
 1. Tambahkan pengguna ke grup sudo:
 
@@ -154,7 +210,7 @@ Jika terjadi kesalahan terkait izin, pastikan pengguna yang menjalankan script m
    sudo usermod -aG sudo username
    ```
 
-2. Atau konfigurasikan sudoers untuk mengizinkan akses tanpa password ke systemctl:
+2. Atau, konfigurasikan `sudoers` agar dapat mengakses `systemctl` tanpa kata sandi:
 
    ```bash
    echo "username ALL=(ALL) NOPASSWD: /bin/systemctl status laravel-frankenphp-*, /bin/systemctl start laravel-frankenphp-*, /bin/systemctl stop laravel-frankenphp-*, /bin/systemctl restart laravel-frankenphp-*" | sudo tee /etc/sudoers.d/service-manager
@@ -187,6 +243,26 @@ systemctl list-units --type=service | grep frankenphp
 
    ```bash
    streamlit run cekservice_streamlit.py --server.port 8501
+   ```
+
+4. Untuk masalah koneksi database, pastikan konfigurasi URL database di file secrets.toml sudah benar:
+
+   ```toml
+   [connections.db]
+   type = "sql"
+   url = "sqlite:///database.db"
+   ```
+
+5. Jika fitur otentikasi tidak berfungsi, periksa kredensial dan URL redirect di file secrets.toml:
+
+   ```bash
+   streamlit run cekservice_streamlit.py --server.enableCORS=false --server.enableXsrfProtection=false
+   ```
+
+6. Jika mengalami masalah caching (`st.cache_data` atau `st.cache_resource`), Anda dapat menghapus cache:
+
+   ```python
+   st.cache_data.clear()
    ```
 
 ## Kontribusi
