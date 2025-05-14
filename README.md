@@ -1,6 +1,6 @@
 # Pengelola Layanan Laravel FrankenPHP
 
-Proyek ini adalah sebuah alat bantu yang dirancang untuk menyederhanakan pengelolaan layanan Laravel FrankenPHP di lingkungan Linux. Dengan alat ini, para pengembang dan administrator sistem dapat dengan mudah:
+Proyek ini adalah alat bantu untuk memudahkan pengelolaan layanan Laravel FrankenPHP di lingkungan Linux. Alat ini membantu pengembang dan administrator sistem untuk:
 
 - Memeriksa status layanan _staging_ dan _production_.
 - Menjalankan layanan.
