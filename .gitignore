@@ -53,3 +53,7 @@ captcha_images/
 # Sistem operasi
 .DS_Store
 Thumbs.db 
+
+.windsurfrules
+.cursor/
+./vscode
