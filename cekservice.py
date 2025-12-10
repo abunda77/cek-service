@@ -65,6 +65,107 @@ def print_header():
     print(f"\n{Fore.YELLOW}Contoh penggunaan:{Style.RESET_ALL}")
     print(f"  {Fore.GREEN}python3 service_manager.py --service staging --action restart{Style.RESET_ALL}\n")
 
+def interactive_mode():
+    """Mode interaktif untuk memilih service dan action."""
+    services = {
+        "1": ("staging", "laravel-frankenphp-staging"),
+        "2": ("production", "laravel-frankenphp-production"),
+        "3": ("pams", "laravel-frankenphp-pams"),
+        "4": ("bosco", "laravel-frankenphp-bosco"),
+        "5": ("all", "all")
+    }
+    
+    actions = {
+        "1": "status",
+        "2": "start",
+        "3": "stop",
+        "4": "restart"
+    }
+    
+    # Header
+    print(f"\n{Fore.CYAN}{Style.BRIGHT}╔═══════════════════════════════════════╗{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}{Style.BRIGHT}║   Laravel FrankenPHP Manager v2.0    ║{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}{Style.BRIGHT}╚═══════════════════════════════════════╝{Style.RESET_ALL}\n")
+    
+    # Pilih Service
+    print(f"{Fore.YELLOW}{Style.BRIGHT}📋 Pilih Layanan:{Style.RESET_ALL}")
+    service_table = [
+        ["1", "Staging", "laravel-frankenphp-staging"],
+        ["2", "Production", "laravel-frankenphp-production"],
+        ["3", "PAMS", "laravel-frankenphp-pams"],
+        ["4", "BOSCO", "laravel-frankenphp-bosco"],
+        ["5", "Semua Layanan", "all"]
+    ]
+    print(tabulate(service_table, headers=["No", "Nama", "Service"], tablefmt="fancy_grid"))
+    
+    service_choice = input(f"\n{Fore.CYAN}Masukkan nomor layanan (1-5): {Style.RESET_ALL}").strip()
+    
+    if service_choice not in services:
+        print(f"{Fore.RED}✖ Pilihan tidak valid!{Style.RESET_ALL}")
+        return
+    
+    selected_service_key, selected_service_name = services[service_choice]
+    
+    # Pilih Action
+    print(f"\n{Fore.YELLOW}{Style.BRIGHT}⚙️  Pilih Aksi:{Style.RESET_ALL}")
+    action_table = [
+        ["1", "Status", "Cek status layanan"],
+        ["2", "Start", "Jalankan layanan"],
+        ["3", "Stop", "Hentikan layanan"],
+        ["4", "Restart", "Restart layanan"]
+    ]
+    print(tabulate(action_table, headers=["No", "Aksi", "Deskripsi"], tablefmt="fancy_grid"))
+    
+    action_choice = input(f"\n{Fore.CYAN}Masukkan nomor aksi (1-4): {Style.RESET_ALL}").strip()
+    
+    if action_choice not in actions:
+        print(f"{Fore.RED}✖ Pilihan tidak valid!{Style.RESET_ALL}")
+        return
+    
+    selected_action = actions[action_choice]
+    
+    # Konfirmasi
+    print(f"\n{Fore.YELLOW}{'='*50}{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}Layanan: {Style.RESET_ALL}{Fore.WHITE}{Style.BRIGHT}{selected_service_key}{Style.RESET_ALL}")
+    print(f"{Fore.CYAN}Aksi: {Style.RESET_ALL}{Fore.WHITE}{Style.BRIGHT}{selected_action}{Style.RESET_ALL}")
+    print(f"{Fore.YELLOW}{'='*50}{Style.RESET_ALL}")
+    
+    confirm = input(f"\n{Fore.YELLOW}Lanjutkan? (y/n): {Style.RESET_ALL}").strip().lower()
+    
+    if confirm != 'y':
+        print(f"{Fore.YELLOW}✖ Dibatalkan.{Style.RESET_ALL}")
+        return
+    
+    # Eksekusi
+    print(f"\n{Fore.CYAN}⏳ Memproses...{Style.RESET_ALL}\n")
+    
+    all_services = {
+        "staging": "laravel-frankenphp-staging",
+        "production": "laravel-frankenphp-production",
+        "pams": "laravel-frankenphp-pams",
+        "bosco": "laravel-frankenphp-bosco"
+    }
+    
+    if selected_service_key == "all":
+        selected_services = all_services.values()
+    else:
+        selected_services = [selected_service_name]
+    
+    service_results = []
+    for service in selected_services:
+        if selected_action == "status":
+            result = check_service_status(service)
+        else:
+            result = manage_service(service, selected_action)
+        service_results.append([service, result])
+    
+    print(tabulate(service_results, 
+                   headers=[f"{Fore.CYAN}Layanan{Style.RESET_ALL}", 
+                            f"{Fore.CYAN}Status/Aksi{Style.RESET_ALL}"], 
+                   tablefmt="pretty"))
+    
+    print(f"\n{Fore.GREEN}{Style.BRIGHT}✔ Selesai!{Style.RESET_ALL}\n")
+
 def main():
     # Mengatur parser untuk argumen baris perintah
     parser = argparse.ArgumentParser(
@@ -74,14 +175,17 @@ def main():
     parser.add_argument(
         "--service",
         choices=["staging", "production", "pams", "bosco", "all"],
-        default="all",
-        help="Pilih layanan: staging, production, pams, bosco, atau all (default: all)"
+        help="Pilih layanan: staging, production, pams, bosco, atau all"
     )
     parser.add_argument(
         "--action",
         choices=["status", "start", "stop", "restart"],
-        default="status",
-        help="Aksi: status, start, stop, atau restart (default: status)"
+        help="Aksi: status, start, stop, atau restart"
+    )
+    parser.add_argument(
+        "-i", "--interactive",
+        action="store_true",
+        help="Mode interaktif dengan dialog"
     )
     parser.add_argument(
         "-h", "--help",
@@ -91,16 +195,28 @@ def main():
     )
     
     args = parser.parse_args()
+    
+    # Jika tidak ada argumen atau flag -i, jalankan mode interaktif
+    if args.interactive or (args.service is None and args.action is None):
+        interactive_mode()
+        return
 
-    # Mencetak header
+    # Mode CLI - Mencetak header
     print_header()
- # Daftar layanan yang akan dikelola
+    
+    # Daftar layanan yang akan dikelola
     services = {
         "staging": "laravel-frankenphp-staging",
         "production": "laravel-frankenphp-production",
         "pams": "laravel-frankenphp-pams",
         "bosco": "laravel-frankenphp-bosco"
     }
+
+    # Set default values jika tidak ada
+    if args.service is None:
+        args.service = "all"
+    if args.action is None:
+        args.action = "status"
 
     # Menentukan layanan yang akan diproses
     if args.service == "all":
