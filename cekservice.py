@@ -54,7 +54,7 @@ def print_header():
     print(tabulate(header_table, tablefmt="double_grid", headers=[""], colalign=("center",)))
     
     options_table = [
-        ["--service", "staging, production, all", "Default: all"],
+        ["--service", "staging, production, pams, bosco, all", "Default: all"],
         ["--action", "status, start, stop, restart", "Default: status"]
     ]
     
@@ -73,9 +73,9 @@ def main():
     )
     parser.add_argument(
         "--service",
-        choices=["staging", "production", "all"],
+        choices=["staging", "production", "pams", "bosco", "all"],
         default="all",
-        help="Pilih layanan: staging, production, atau all (default: all)"
+        help="Pilih layanan: staging, production, pams, bosco, atau all (default: all)"
     )
     parser.add_argument(
         "--action",
@@ -97,7 +97,9 @@ def main():
  # Daftar layanan yang akan dikelola
     services = {
         "staging": "laravel-frankenphp-staging",
-        "production": "laravel-frankenphp-production"
+        "production": "laravel-frankenphp-production",
+        "pams": "laravel-frankenphp-pams",
+        "bosco": "laravel-frankenphp-bosco"
     }
 
     # Menentukan layanan yang akan diproses
