@@ -4,16 +4,20 @@ Versi GUI berbasis Flask untuk manajemen service SystemD
 """
 
 from flask import Flask, render_template_string, jsonify, request, session, redirect, url_for
+from dotenv import load_dotenv
 import subprocess
 import os
 import secrets
 
-app = Flask(__name__)
-app.secret_key = secrets.token_hex(16)
+# Load environment variables dari .env
+load_dotenv()
 
-# Konfigurasi
-DEFAULT_USERNAME = "admin"
-DEFAULT_PASSWORD = "sinara123"
+app = Flask(__name__)
+app.secret_key = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(16))
+
+# Konfigurasi dari .env
+DEFAULT_USERNAME = os.getenv('GUI_USERNAME', 'admin')
+DEFAULT_PASSWORD = os.getenv('GUI_PASSWORD', 'sinara123')
 
 def load_services_config(config_file="services.txt"):
     """Membaca konfigurasi service dari file eksternal."""
