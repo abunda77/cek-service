@@ -16,8 +16,8 @@ app = Flask(__name__)
 app.secret_key = os.getenv('FLASK_SECRET_KEY', secrets.token_hex(16))
 
 # Konfigurasi dari .env
-DEFAULT_USERNAME = os.getenv('GUI_USERNAME', 'lores')
-DEFAULT_PASSWORD = os.getenv('GUI_PASSWORD', 'ipsum')
+DEFAULT_USERNAME = os.getenv('GUI_USERNAME', ' ')
+DEFAULT_PASSWORD = os.getenv('GUI_PASSWORD', ' ')
 
 def load_services_config(config_file="services.txt"):
     """Membaca konfigurasi service dari file eksternal."""
