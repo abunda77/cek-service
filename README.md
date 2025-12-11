@@ -274,3 +274,6 @@ Jika Anda memiliki pertanyaan, saran, atau membutuhkan dukungan lebih lanjut, ja
 
 - Email: admin@example.com (Harap ganti dengan alamat email kontak yang valid)
 - Isu GitHub: [YourUsername]/[RepoName]/issues (Harap ganti dengan tautan isu GitHub yang sesuai)
+
+#CREATE FLASK KEY
+python3 -c "import secrets; print('FLASK_SECRET_KEY=' + secrets.token_hex(32))" >> .env
