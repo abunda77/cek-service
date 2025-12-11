@@ -1,11 +1,47 @@
 import subprocess
 import sys
 import argparse
+import os
 from colorama import init, Fore, Style
 from tabulate import tabulate
 
 # Inisialisasi colorama untuk output berwarna
 init(autoreset=True)
+
+def load_services_config(config_file="services.txt"):
+    """Membaca konfigurasi service dari file eksternal."""
+    services = {}
+    
+    # Cari file config di direktori yang sama dengan script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(script_dir, config_file)
+    
+    if not os.path.exists(config_path):
+        print(f"{Fore.RED}✖ File konfigurasi '{config_file}' tidak ditemukan!{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Buat file '{config_file}' dengan format:{Style.RESET_ALL}")
+        print(f"  nama_pendek=nama_service_systemd")
+        print(f"  Contoh: staging=laravel-frankenphp-staging")
+        sys.exit(1)
+    
+    try:
+        with open(config_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                # Skip baris kosong dan komentar
+                if not line or line.startswith('#'):
+                    continue
+                if '=' in line:
+                    key, value = line.split('=', 1)
+                    services[key.strip()] = value.strip()
+    except Exception as e:
+        print(f"{Fore.RED}✖ Gagal membaca file konfigurasi: {e}{Style.RESET_ALL}")
+        sys.exit(1)
+    
+    if not services:
+        print(f"{Fore.RED}✖ Tidak ada service yang dikonfigurasi di '{config_file}'!{Style.RESET_ALL}")
+        sys.exit(1)
+    
+    return services
 
 def run_command(command):
     """Menjalankan perintah shell dan mengembalikan outputnya."""
@@ -46,15 +82,16 @@ def manage_service(service_name, action):
     else:
         return f"{Fore.RED}✖ Gagal {action} layanan {service_name}: {stderr}{Style.RESET_ALL}"
 
-def print_header():
+def print_header(services):
     """Mencetak header aplikasi dengan tabel ASCII."""
     header_table = [
         [f"{Fore.CYAN}{Style.BRIGHT}Laravel FrankenPHP Manager{Style.RESET_ALL}"]
     ]
     print(tabulate(header_table, tablefmt="double_grid", headers=[""], colalign=("center",)))
     
+    service_choices = ", ".join(list(services.keys()) + ["all"])
     options_table = [
-        ["--service", "staging, production, pams, bosco, all", "Default: all"],
+        ["--service", service_choices, "Default: all"],
         ["--action", "status, start, stop, restart", "Default: status"]
     ]
     
@@ -63,17 +100,24 @@ def print_header():
                    tablefmt="pretty", colalign=("left", "left", "left")))
     
     print(f"\n{Fore.YELLOW}Contoh penggunaan:{Style.RESET_ALL}")
-    print(f"  {Fore.GREEN}python3 service_manager.py --service staging --action restart{Style.RESET_ALL}\n")
+    print(f"  {Fore.GREEN}python3 cekservice.py --service staging --action restart{Style.RESET_ALL}\n")
 
 def interactive_mode():
     """Mode interaktif untuk memilih service dan action."""
-    services = {
-        "1": ("staging", "laravel-frankenphp-staging"),
-        "2": ("production", "laravel-frankenphp-production"),
-        "3": ("pams", "laravel-frankenphp-pams"),
-        "4": ("bosco", "laravel-frankenphp-bosco"),
-        "5": ("all", "all")
-    }
+    # Load services dari file konfigurasi
+    all_services = load_services_config()
+    
+    # Buat mapping nomor ke service
+    services = {}
+    service_table = []
+    for idx, (key, value) in enumerate(all_services.items(), 1):
+        services[str(idx)] = (key, value)
+        service_table.append([str(idx), key.upper(), value])
+    
+    # Tambahkan opsi "all"
+    all_idx = str(len(all_services) + 1)
+    services[all_idx] = ("all", "all")
+    service_table.append([all_idx, "Semua Layanan", "all"])
     
     actions = {
         "1": "status",
@@ -89,16 +133,10 @@ def interactive_mode():
     
     # Pilih Service
     print(f"{Fore.YELLOW}{Style.BRIGHT}📋 Pilih Layanan:{Style.RESET_ALL}")
-    service_table = [
-        ["1", "Staging", "laravel-frankenphp-staging"],
-        ["2", "Production", "laravel-frankenphp-production"],
-        ["3", "PAMS", "laravel-frankenphp-pams"],
-        ["4", "BOSCO", "laravel-frankenphp-bosco"],
-        ["5", "Semua Layanan", "all"]
-    ]
     print(tabulate(service_table, headers=["No", "Nama", "Service"], tablefmt="fancy_grid"))
     
-    service_choice = input(f"\n{Fore.CYAN}Masukkan nomor layanan (1-5): {Style.RESET_ALL}").strip()
+    max_choice = len(services)
+    service_choice = input(f"\n{Fore.CYAN}Masukkan nomor layanan (1-{max_choice}): {Style.RESET_ALL}").strip()
     
     if service_choice not in services:
         print(f"{Fore.RED}✖ Pilihan tidak valid!{Style.RESET_ALL}")
@@ -139,13 +177,6 @@ def interactive_mode():
     # Eksekusi
     print(f"\n{Fore.CYAN}⏳ Memproses...{Style.RESET_ALL}\n")
     
-    all_services = {
-        "staging": "laravel-frankenphp-staging",
-        "production": "laravel-frankenphp-production",
-        "pams": "laravel-frankenphp-pams",
-        "bosco": "laravel-frankenphp-bosco"
-    }
-    
     if selected_service_key == "all":
         selected_services = all_services.values()
     else:
@@ -167,6 +198,10 @@ def interactive_mode():
     print(f"\n{Fore.GREEN}{Style.BRIGHT}✔ Selesai!{Style.RESET_ALL}\n")
 
 def main():
+    # Load services dari file konfigurasi
+    services = load_services_config()
+    service_choices = list(services.keys()) + ["all"]
+    
     # Mengatur parser untuk argumen baris perintah
     parser = argparse.ArgumentParser(
         description="Manajemen layanan Laravel FrankenPHP",
@@ -174,8 +209,8 @@ def main():
     )
     parser.add_argument(
         "--service",
-        choices=["staging", "production", "pams", "bosco", "all"],
-        help="Pilih layanan: staging, production, pams, bosco, atau all"
+        choices=service_choices,
+        help=f"Pilih layanan: {', '.join(service_choices)}"
     )
     parser.add_argument(
         "--action",
@@ -202,15 +237,7 @@ def main():
         return
 
     # Mode CLI - Mencetak header
-    print_header()
-    
-    # Daftar layanan yang akan dikelola
-    services = {
-        "staging": "laravel-frankenphp-staging",
-        "production": "laravel-frankenphp-production",
-        "pams": "laravel-frankenphp-pams",
-        "bosco": "laravel-frankenphp-bosco"
-    }
+    print_header(services)
 
     # Set default values jika tidak ada
     if args.service is None:

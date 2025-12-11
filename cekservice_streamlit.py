@@ -1,6 +1,7 @@
 import streamlit as st
 import subprocess
 import sys
+import os
 import random
 import io
 from PIL import Image, ImageDraw, ImageFont
@@ -9,6 +10,35 @@ from tabulate import tabulate
 
 # Initialize colorama for colored output
 init(autoreset=True)
+
+def load_services_config(config_file="services.txt"):
+    """Membaca konfigurasi service dari file eksternal."""
+    services = {}
+    
+    # Cari file config di direktori yang sama dengan script
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    config_path = os.path.join(script_dir, config_file)
+    
+    if not os.path.exists(config_path):
+        st.error(f"File konfigurasi '{config_file}' tidak ditemukan!")
+        st.info(f"Buat file '{config_file}' dengan format:\nnama_pendek=nama_service_systemd")
+        return {}
+    
+    try:
+        with open(config_path, 'r') as f:
+            for line in f:
+                line = line.strip()
+                # Skip baris kosong dan komentar
+                if not line or line.startswith('#'):
+                    continue
+                if '=' in line:
+                    key, value = line.split('=', 1)
+                    services[key.strip().title()] = value.strip()
+    except Exception as e:
+        st.error(f"Gagal membaca file konfigurasi: {e}")
+        return {}
+    
+    return services
 
 # Set session state for authentication
 if 'authenticated' not in st.session_state:
@@ -138,12 +168,14 @@ def main():
         st.session_state.authenticated = False
         st.rerun()
     
-    # Service definitions
-    services = {
-        "Staging": "laravel-frankenphp-staging",
-        "Production": "laravel-frankenphp-production"
-    }
-# Sidebar for service selection and actions
+    # Load service definitions dari file konfigurasi
+    services = load_services_config()
+    
+    if not services:
+        st.warning("Tidak ada service yang dikonfigurasi. Silakan buat file services.txt")
+        return
+    
+    # Sidebar for service selection and actions
     st.sidebar.header("Service Management")
     selected_service = st.sidebar.selectbox(
         "Select Service", 

@@ -1,0 +1,14 @@
+# Konfigurasi Daftar Service
+# Format: nama_pendek=nama_service_systemd
+# Contoh: staging=laravel-frankenphp-staging
+# Baris yang diawali # akan diabaikan
+
+staging=laravel-frankenphp-staging
+production=laravel-frankenphp-production
+pams=laravel-frankenphp-pams
+bosco=laravel-frankenphp-bosco
+pams_queue=laravel-queue-pams.service
+production_queue=laravel-queue-production
+staging_queue=laravel-queue
+production_schedule=laravel-schedule-production
+staging_schedule=laravel-schedule-staging
